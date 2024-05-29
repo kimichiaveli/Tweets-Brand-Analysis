@@ -10,12 +10,13 @@ Before running the script, make sure you have the following installed:
 - Pip or Conda to install Python Libraries
 - Dash (Python web framework)
 - NLTK (Python library for processing textual data)
+- emoji (Not the actual emojis :sweat_smile:, but the Python library to detect and translate emoji into text for sentiment analysis)
 - Plotly (Python library for data visualization, i use plotly.express to build interactive dashboards for the dashboard)
   
 You can install the required packages using pip or conda:
 
 ```bash
-pip install dash nltk plotly
+pip install dash nltk plotly emoji
 ```
 
 ## Features
@@ -28,4 +29,4 @@ pip install dash nltk plotly
 
 ## Future Development
 
-- Write a Python script to scrap tweets using Twitter API
+- Write a Python script to scrap tweets using Twitter API with language detection and tweets geo tracker
