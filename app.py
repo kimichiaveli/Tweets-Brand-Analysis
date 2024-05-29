@@ -1,44 +1,40 @@
 import dash
 import base64
 import io
+import nltk
 import string
 import re
+import emoji
 import pandas as pd
 import plotly.express as px
 from dash import dcc, html, dash_table
-from dash.dependencies import Input, Output
 from dash.exceptions import PreventUpdate
 from dash.dependencies import Input, Output, State
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
-from nltk.stem import PorterStemmer
+from nltk.stem import WordNetLemmatizer
 from sentiment import sentiment_analyzer
 
 # Text Cleaning
 def clean_text(text):
-    # Define the regex pattern for URLs including shortened links
-    url_pattern = re.compile(
-        r'((http|https):\/\/)?(www\.)?[\w\-\.]+(\.\w{2,})+(\/\S*)?'
-    )
-    # Remove URLs by replacing them with an empty string
-    text_without_urls = url_pattern.sub('', text)
-    # Remove extra spaces
-    text = re.sub('\s+', ' ', text_without_urls).strip()
+    # Remove retweets
+    text = re.sub(r'^RT @\w+: ', '', text)
+    
+    # Remove user mentions
+    text = re.sub(r'@\w+', '', text)
 
-    # Remove punctuation
-    text = text.translate(str.maketrans('', '', string.punctuation))
-    # Convert to lowercase
-    text = text.lower()
+    # Remove URLs
+    url_pattern = re.compile(r'((http|https):\/\/)?(www\.)?[\w\-\.]+(\.\w{2,})+(\/\S*)?')
+    text = url_pattern.sub('', text)
 
-    # Tokenization
+    # Remove extra spaces, de-emojize, punctuation, and convert to lowercase
+    text = emoji.demojize(re.sub('\s+', ' ', text).strip().translate(str.maketrans('', '', string.punctuation)).lower())
+
+    # Tokenize, lemmatize, and remove stopwords
     tokens = word_tokenize(text)
-    
-    # Removing stopwords
+    lemmatizer = WordNetLemmatizer()
     stop_words = set(stopwords.words('english'))
-    filtered_tokens = [word for word in tokens if word not in stop_words]
-    
-    # Join tokens back into a single string
-    cleaned_text = ' '.join(filtered_tokens)
+    cleaned_text = ' '.join([lemmatizer.lemmatize(word) for word in tokens if word not in stop_words])
 
     return cleaned_text
 
@@ -58,25 +54,24 @@ app.layout = html.Div([
                 html.Div([
                     dcc.Upload(
                         id='upload-data',
-                        children=html.Button('Upload Data', style={'fontSize': '16px', 'fontFamily': 'Helvetica Neue, Helvetica'}),
+                        children=html.Button('Upload Data', style={'fontSize': '13px', 'fontFamily': 'Helvetica Neue, Helvetica'}),
                         style={'textAlign': 'left', 'marginBottom': '10px', 'position': 'sticky', 'top': '0'}
                     ),
                     dcc.Input(
                         id='keyword-input',
                         type='text',
                         placeholder='Enter keyword',
-                        style={'fontSize': '13px', 'fontFamily': 'Helvetica Neue, Helvetica', 'textAlign': 'left', 'marginBottom': '10px', 'position': 'sticky', 'top': '0'}
+                        style={'fontSize': '12px', 'fontFamily': 'Helvetica Neue, Helvetica', 'textAlign': 'left', 'marginBottom': '10px', 'position': 'sticky', 'top': '0', 'width': '240px'}
                     ),
                     dcc.Store(id='dropdown-value'),
                     dcc.Dropdown(
                         id='text-col-dropdown',
-                        placeholder='Select an option',
-                        style={'fontSize': '12px', 'fontFamily': 'Helvetica Neue, Helvetica'}
+                        placeholder='Select text column to be analyzed',
+                        style={'fontSize': '12px', 'fontFamily': 'Helvetica Neue, Helvetica', 'width': '250px'}
                     )
                 ], style={'textAlign': 'left', 'marginLeft': '40px'}),
                 html.Div([
                     html.Div(id='output-data-upload', style={'textAlign': 'right', 'float': 'right', 'fontSize': '14px', 'fontFamily': 'Helvetica Neue, Helvetica'})
-                # ,html.Div(id='processed-data-output', style={'textAlign': 'right', 'float': 'right', 'fontSize': '10px', 'fontFamily': 'Helvetica Neue, Helvetica'})
                 ])
             ], style={'display': 'flex', 'justifyContent': 'space-between'})
         ], style={'position': 'fixed', 'top': '0', 'left': '0', 'zIndex': '1000', 'backgroundColor': '#f0f0f0', 'padding': '10px', 'width': '100%', 'boxSizing': 'border-box'}),
@@ -131,12 +126,13 @@ def update_data(contents, filename, last_modified):
         
         # Data validation: Check if the file is a CSV file
         if filename.endswith('.csv'):
-            # Store the uploaded data in the session
-            session['uploaded_data'] = base64.b64decode(content_string)
-            session['filename'] = filename
-
             # Create a Dataframe
             df = pd.read_csv(io.StringIO(decoded.decode('utf-8')))
+            df_en = df[df['Lang'] == 'en']
+
+            # Store the uploaded data in the session
+            session['uploaded_data'] = df_en.to_csv(index=False).encode()
+            session['filename'] = filename
 
             # Display success message
             upload_success_message  =  html.Div([
